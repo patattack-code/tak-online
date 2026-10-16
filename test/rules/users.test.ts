@@ -86,7 +86,9 @@ function finishRated(uid: string, gameId: string, deltas: { white: number; black
     });
     tx.set(doc(db, `users/${g.white}`), stats(g.white, deltas.white, 'white', opts.ratingWhite, opts.gamesWhite), { merge: true });
     tx.set(doc(db, `users/${g.black}`), stats(g.black, deltas.black, 'black'), { merge: true });
+    // A draw can only arise from a move (flat count), so append one; a loss can come from resigning.
     tx.update(gref, {
+      ...(winner === null ? { moves: [...(g.moves as string[]), 'c3'] } : {}),
       status: 'finished',
       result: winner === null ? { winner: null, type: 'draw' } : { winner, type: 'resign' },
       toMoveUid: null,
@@ -111,8 +113,8 @@ describe('users: rating updates', () => {
     await assertSucceeds(finishRated('bob', 'g1', { white: 20, black: -20 }));
   });
 
-  it('succeed for a draw with small deltas', async () => {
-    await assertSucceeds(finishRated('bob', 'g1', { white: 3, black: -3 }, { winner: null }));
+  it('succeed for a draw reached by the final move', async () => {
+    await assertSucceeds(finishRated('alice', 'g1', { white: 3, black: -3 }, { winner: null }));
   });
 
   it('reject deltas that do not match the game record', async () => {

@@ -62,50 +62,121 @@ service cloud.firestore {
     }
 
     match /games/{gameId} {
+      function me() { return request.auth.uid; }
+      function d() { return request.resource.data; }
+      function o() { return resource.data; }
+      function opponentColor() { return o().white == me() ? 'black' : 'white'; }
+      function opponentUid() { return o().white == me() ? o().black : o().white; }
+
+      function validPlayerInfo(p) {
+        return p.keys().hasOnly(['displayName', 'photoURL'])
+          && p.displayName is string && p.displayName.size() >= 1 && p.displayName.size() <= 50
+          && (p.photoURL == null
+              || (p.photoURL is string && p.photoURL.size() <= 512 && p.photoURL.matches('^https://.*')));
+      }
+
+      function validResult(res, types) {
+        return res.keys().hasOnly(['winner', 'type'])
+          && res.type in types
+          && ((res.type == 'draw' && res.winner == null)
+              || (res.type != 'draw' && res.winner in ['white', 'black']));
+      }
+
+      function deltaOk(delta, won, lost) {
+        return delta is int && delta >= -40 && delta <= 40
+          && (!won || delta >= 0) && (!lost || delta <= 0);
+      }
+
+      // Rating bookkeeping on a finished game: untouched when unrated; when
+      // rated, applied exactly once with bounded, correctly signed deltas.
+      // The user rules then require each player's rating change to equal
+      // the delta recorded here.
+      function ratingFieldsOk() {
+        let r = request.resource.data;
+        let winner = r.result.winner;
+        return (r.rated == false && r.ratingApplied == false && r.ratingDelta == {})
+          || (r.rated == true && r.ratingApplied == true
+              && r.ratingDelta.keys().hasOnly([r.white, r.black])
+              && r.ratingDelta.keys().hasAll([r.white, r.black])
+              && deltaOk(r.ratingDelta[r.white], winner == 'white', winner == 'black')
+              && deltaOk(r.ratingDelta[r.black], winner == 'black', winner == 'white'));
+      }
+
+      function finishedShape() {
+        let r = request.resource.data;
+        return r.status == 'finished' && r.toMoveUid == null && ratingFieldsOk();
+      }
+
+      // The player to move appends exactly one well-formed PTN move. History
+      // is append-only. The move either passes the turn or ends the game.
+      function isMove() {
+        let r = request.resource.data;
+        let old = resource.data;
+        let n = old.moves.size();
+        return old.toMoveUid == request.auth.uid
+          && changedKeys().hasOnly(['moves', 'toMoveUid', 'updatedAt', 'status', 'result', 'finishedAt', 'ratingApplied', 'ratingDelta'])
+          && r.moves.size() == n + 1
+          && (n == 0 || r.moves[0:n] == old.moves)
+          && r.moves[n] is string
+          && r.moves[n].matches('^[FSC]?[1-8]?[a-h][1-8]([-+<>][1-8]*)?$')
+          && (
+            (r.status == 'active' && r.result == null && r.toMoveUid == opponentUid()
+              && r.ratingApplied == false && r.ratingDelta == {})
+            || (finishedShape() && validResult(r.result, ['road', 'flat', 'draw']))
+          );
+      }
+
+      // Either player may resign, which can only hand the win to the opponent.
+      function isResign() {
+        let r = request.resource.data;
+        return changedKeys().hasOnly(['toMoveUid', 'updatedAt', 'status', 'result', 'finishedAt', 'ratingApplied', 'ratingDelta'])
+          && finishedShape()
+          && validResult(r.result, ['resign'])
+          && r.result.winner == opponentColor();
+      }
+
       allow read: if signedIn();
 
       allow create: if signedIn()
-        && gameId.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
-        && gameId.size() <= 52
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 60
-        && request.resource.data.creator == request.auth.uid
-        && request.resource.data.status == 'waiting'
-        && request.resource.data.size in [3, 4, 5, 6, 7, 8]
-        && request.resource.data.moves.size() == 0
-        && request.resource.data.playerIds == [request.auth.uid];
+        && gameId.matches('^[a-z0-9]+(-[a-z0-9]+)*$') && gameId.size() <= 52
+        && d().keys().hasOnly(['name', 'size', 'creator', 'creatorColor', 'white', 'black', 'playerIds', 'names',
+                               'status', 'moves', 'toMoveUid', 'result', 'rated', 'ratingApplied', 'ratingDelta',
+                               'createdAt', 'updatedAt', 'finishedAt'])
+        && d().name is string && d().name.size() >= 1 && d().name.size() <= 60
+        && d().size in [3, 4, 5, 6, 7, 8]
+        && d().creator == me()
+        && d().creatorColor in ['white', 'black', 'random']
+        && d().white == null && d().black == null
+        && d().playerIds == [me()]
+        && d().names.keys().hasOnly([me()]) && validPlayerInfo(d().names[me()])
+        && d().status == 'waiting' && d().moves == [] && d().toMoveUid == null && d().result == null
+        && d().rated is bool && d().ratingApplied == false && d().ratingDelta == {};
 
-      // Joining: a different signed-in user turns a waiting game active.
+      // Joining: a different signed-in user turns a waiting game active and
+      // takes the colour the creator left open.
       allow update: if signedIn()
-        && resource.data.status == 'waiting'
-        && request.resource.data.status == 'active'
-        && request.auth.uid != resource.data.creator
-        && request.resource.data.playerIds.hasAll([resource.data.creator, request.auth.uid])
-        && request.resource.data.playerIds.size() == 2
-        && request.resource.data.moves.size() == 0;
+        && o().status == 'waiting'
+        && me() != o().creator
+        && changedKeys().hasOnly(['white', 'black', 'playerIds', 'names', 'status', 'toMoveUid', 'updatedAt'])
+        && d().status == 'active'
+        && d().playerIds == [o().creator, me()]
+        && ((d().white == o().creator && d().black == me()) || (d().white == me() && d().black == o().creator))
+        && (o().creatorColor == 'random' || ((o().creatorColor == 'white') == (d().white == o().creator)))
+        && d().toMoveUid == d().white
+        && d().names.keys().hasOnly([o().creator, me()])
+        && d().names[o().creator] == o().names[o().creator]
+        && validPlayerInfo(d().names[me()]);
 
-      // Playing: only participants, and only the player to move may add moves.
-      // Resignation changes status without adding a move, so either player may do it.
+      // Playing: participants only; a move by the player to move, or a resignation.
       allow update: if signedIn()
-        && resource.data.status == 'active'
-        && request.auth.uid in resource.data.playerIds
-        && request.resource.data.playerIds == resource.data.playerIds
-        && request.resource.data.white == resource.data.white
-        && request.resource.data.black == resource.data.black
-        && request.resource.data.size == resource.data.size
-        && request.resource.data.name == resource.data.name
-        && request.resource.data.rated == resource.data.rated
-        && (
-          request.resource.data.moves == resource.data.moves
-          || (resource.data.toMoveUid == request.auth.uid
-              && request.resource.data.moves.size() == resource.data.moves.size() + 1)
-        );
+        && o().status == 'active'
+        && me() in o().playerIds
+        && (isMove() || isResign());
 
       // The creator may withdraw an unanswered challenge.
       allow delete: if signedIn()
-        && resource.data.status == 'waiting'
-        && resource.data.creator == request.auth.uid;
+        && o().status == 'waiting'
+        && o().creator == me();
     }
   }
 }
