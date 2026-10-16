@@ -187,14 +187,16 @@ async function finishGame(tx: Transaction, id: string, game: GameDoc, result: Ga
       draws: (t?.draws ?? 0) + (score === 0.5 ? 1 : 0),
     });
 
+    // lastRatedGame lets the security rules tie this write to the game being
+    // finished in the same transaction (see ratingUpdateOk in firestore.rules).
     tx.set(
       userRef(whiteUid),
-      { ratings: { [key]: bump(wStats, elo.a, scoreWhite) }, totals: totals(wDoc.totals, scoreWhite), updatedAt: serverTimestamp() },
+      { ratings: { [key]: bump(wStats, elo.a, scoreWhite) }, totals: totals(wDoc.totals, scoreWhite), lastRatedGame: id, updatedAt: serverTimestamp() },
       { merge: true },
     );
     tx.set(
       userRef(blackUid),
-      { ratings: { [key]: bump(bStats, elo.b, 1 - scoreWhite) }, totals: totals(bDoc.totals, 1 - scoreWhite), updatedAt: serverTimestamp() },
+      { ratings: { [key]: bump(bStats, elo.b, 1 - scoreWhite) }, totals: totals(bDoc.totals, 1 - scoreWhite), lastRatedGame: id, updatedAt: serverTimestamp() },
       { merge: true },
     );
     update.ratingApplied = true;

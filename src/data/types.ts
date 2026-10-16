@@ -31,6 +31,8 @@ export interface UserDoc {
   updatedAt?: Timestamp | null;
   ratings: Partial<Record<SizeKey, SizeStats>>;
   totals: Totals;
+  /** ID of the game whose completion last changed the ratings (checked by security rules). */
+  lastRatedGame?: string;
 }
 
 export type SizeKey = 's3' | 's4' | 's5' | 's6' | 's7' | 's8';

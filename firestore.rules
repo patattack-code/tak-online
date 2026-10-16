@@ -11,18 +11,52 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    function validProfile(d) {
+      return d.displayName is string
+        && d.displayName.size() >= 1 && d.displayName.size() <= 50
+        && (d.photoURL == null
+            || (d.photoURL is string && d.photoURL.size() <= 512 && d.photoURL.matches('^https://.*')));
+    }
+
+    // A statistics write on users/{uid} is legal only as part of the batch that
+    // finishes a rated game between the writer and {uid}. getAfter() sees the
+    // game as it will be once the batch commits; get() sees it as it was.
+    // The rating change must equal the delta recorded on the game, which the
+    // game rules bound and sign-check, so nobody can hand themselves points.
+    function ratingUpdateOk(uid) {
+      let gid = request.resource.data.lastRatedGame;
+      let before = get(/databases/$(database)/documents/games/$(gid)).data;
+      let after = getAfter(/databases/$(database)/documents/games/$(gid)).data;
+      let key = 's' + string(after.size);
+      let mine = request.resource.data.ratings[key];
+      let old = resource.data.ratings.get(key, {'rating': 1500, 'games': 0});
+      let delta = after.ratingDelta[uid];
+      return gid is string
+        && changedKeys().hasOnly(['ratings', 'totals', 'updatedAt', 'lastRatedGame'])
+        && request.auth.uid in after.playerIds
+        && uid in after.playerIds
+        && before.status == 'active' && before.rated == true && before.ratingApplied == false
+        && after.status == 'finished' && after.ratingApplied == true
+        && request.resource.data.ratings.diff(resource.data.ratings).affectedKeys().hasOnly([key])
+        && delta is int && delta >= -40 && delta <= 40
+        && mine.rating == old.rating + delta
+        && mine.games == old.games + 1
+        && request.resource.data.totals.games == resource.data.totals.games + 1;
+    }
+
     // Public player profiles with per-size ratings.
     match /users/{uid} {
       allow read: if true;
       allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.displayName is string
-        && request.resource.data.totals.games == 0;
-      // Owners may edit their profile fields. Any signed-in user may touch only
-      // the statistics keys; that is how the game-ending transaction updates
-      // both players' ratings. (Hardening option: move that into a Cloud Function.)
+        && request.resource.data.keys().hasOnly(['displayName', 'photoURL', 'createdAt', 'updatedAt', 'ratings', 'totals'])
+        && validProfile(request.resource.data)
+        && request.resource.data.ratings == {}
+        && request.resource.data.totals == {'games': 0, 'wins': 0, 'losses': 0, 'draws': 0};
       allow update: if signedIn() && (
-        (request.auth.uid == uid && !changedKeys().hasAny(['ratings', 'totals']))
-        || changedKeys().hasOnly(['ratings', 'totals', 'updatedAt'])
+        (request.auth.uid == uid
+          && changedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+          && validProfile(request.resource.data))
+        || ratingUpdateOk(uid)
       );
       allow delete: if false;
     }
