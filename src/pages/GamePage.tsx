@@ -9,6 +9,7 @@ import { ptnToMove, replay } from '../engine/ptn';
 import { dirDelta } from '../engine/rules';
 import type { Move } from '../engine/types';
 import { useMoveBuilder } from '../hooks/useMoveBuilder';
+import { useRoadHighlights } from '../hooks/useRoadHighlights';
 import { SIZE_LABELS } from '../render/iso';
 
 function lastMoveHighlights(moves: string[]): Highlight[] {
@@ -56,6 +57,7 @@ export function GamePage() {
   );
 
   const builder = useMoveBuilder(state, game?.status === 'active' ? myColor : null, submit);
+  const roadHighlights = useRoadHighlights(state);
 
   if (game === undefined) return <p className="muted">Loading game…</p>;
   if (game === null) return <p className="error">This game does not exist (it may have been cancelled).</p>;
@@ -64,7 +66,7 @@ export function GamePage() {
     white: game.white ? (game.names[game.white]?.displayName ?? 'White') : 'White',
     black: game.black ? (game.names[game.black]?.displayName ?? 'Black') : 'Black',
   };
-  const highlights: Highlight[] = [...lastMoveHighlights(moves), ...builder.highlights];
+  const highlights: Highlight[] = [...lastMoveHighlights(moves), ...builder.highlights, ...roadHighlights];
   const shareUrl = `${window.location.origin}/game/${game.id}`;
 
   async function copyLink() {

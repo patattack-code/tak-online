@@ -234,6 +234,57 @@ export function hasRoad(state: GameState, color: Color): boolean {
   }
 }
 
+/**
+ * The squares of a winning road for `color`, as a shortest edge-to-edge path
+ * (breadth-first), or null when there is no road. Used to highlight the win.
+ */
+export function findRoad(state: GameState, color: Color): Coord[] | null {
+  const { size } = state;
+  const counts = (coord: Coord) => {
+    const top = topOf(stackAt(state, coord));
+    return !!top && top.color === color && top.type !== 'wall';
+  };
+  const search = (starts: Coord[], isGoal: (p: Coord) => boolean): Coord[] | null => {
+    const parent = new Int32Array(size * size).fill(-2); // -2 unvisited, -1 start
+    const queue: Coord[] = [];
+    for (const s of starts) {
+      if (!counts(s)) continue;
+      parent[idx(size, s.c, s.r)] = -1;
+      queue.push(s);
+    }
+    let head = 0;
+    while (head < queue.length) {
+      const p = queue[head++];
+      if (isGoal(p)) {
+        const path: Coord[] = [];
+        let i = idx(size, p.c, p.r);
+        while (i >= 0) {
+          path.push({ c: i % size, r: Math.floor(i / size) });
+          i = parent[i];
+        }
+        return path.reverse();
+      }
+      for (const d of DIRECTIONS) {
+        const dd = dirDelta(d);
+        const n = { c: p.c + dd.c, r: p.r + dd.r };
+        if (!inBounds(size, n)) continue;
+        const ni = idx(size, n.c, n.r);
+        if (parent[ni] !== -2 || !counts(n)) continue;
+        parent[ni] = idx(size, p.c, p.r);
+        queue.push(n);
+      }
+    }
+    return null;
+  };
+  const west: Coord[] = [];
+  const south: Coord[] = [];
+  for (let i = 0; i < size; i++) {
+    west.push({ c: 0, r: i });
+    south.push({ c: i, r: 0 });
+  }
+  return search(west, (p) => p.c === size - 1) ?? search(south, (p) => p.r === size - 1);
+}
+
 export function countFlats(state: GameState): Record<Color, number> {
   const out = { white: 0, black: 0 };
   for (const s of state.board) {

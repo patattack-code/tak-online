@@ -5,6 +5,7 @@ import { applyMove } from '../engine/rules';
 import { moveToPtn, replay } from '../engine/ptn';
 import { BOARD_SIZES, type BoardSize, type Move } from '../engine/types';
 import { useMoveBuilder } from '../hooks/useMoveBuilder';
+import { useRoadHighlights } from '../hooks/useRoadHighlights';
 import { SIZE_LABELS } from '../render/iso';
 
 /**
@@ -25,6 +26,7 @@ export function PracticePage() {
   );
 
   const builder = useMoveBuilder(state, state.toMove, submit);
+  const roadHighlights = useRoadHighlights(state);
 
   const reset = (s: BoardSize) => {
     setSize(s);
@@ -42,7 +44,13 @@ export function PracticePage() {
   return (
     <div className="game-layout">
       <section className="board-wrap">
-        <Board state={state} pending={builder.pending} highlights={builder.highlights} onSquareClick={builder.onSquareClick} interactive={!state.result} />
+        <Board
+          state={state}
+          pending={builder.pending}
+          highlights={[...builder.highlights, ...roadHighlights]}
+          onSquareClick={builder.onSquareClick}
+          interactive={!state.result}
+        />
       </section>
       <aside className="side">
         <div className="card">

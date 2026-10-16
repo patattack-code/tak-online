@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyMove, countFlats, hasRoad, legalMoves, newGame, stackAt, validateMove } from './rules';
+import { applyMove, countFlats, findRoad, hasRoad, legalMoves, newGame, stackAt, validateMove } from './rules';
 import { moveToPtn, ptnToMove, replay } from './ptn';
 import { computeElo } from './elo';
 import type { GameState } from './types';
@@ -91,6 +91,29 @@ describe('win conditions', () => {
     expect(s.result).toBeNull();
     s = play(s, 'Ca4'); // a1..a3 flats + a4 capstone + a5 flat
     expect(s.result).toEqual({ winner: 'white', type: 'road' });
+  });
+
+  it('returns the squares of the winning road', () => {
+    let s = newGame(5);
+    s = play(s, 'e5', 'a5');
+    s = play(s, 'a1', 'e1', 'a2', 'e2', 'a3', 'e3', 'Ca4');
+    const road = findRoad(s, 'white')!;
+    expect(road.map((p) => `${'abcde'[p.c]}${p.r + 1}`)).toEqual(['a1', 'a2', 'a3', 'a4', 'a5']);
+    expect(findRoad(s, 'black')).toBeNull();
+  });
+
+  it('finds a bending road and prefers the shortest path', () => {
+    // White: a1 b1 b2 c2 c3 d3 e3 plus a detour d4 that should not be included.
+    const s = newGame(5);
+    s.ply = 2;
+    for (const sq of ['a1', 'b1', 'b2', 'c2', 'c3', 'd3', 'e3', 'd4']) {
+      const c = 'abcde'.indexOf(sq[0]);
+      const r = Number(sq[1]) - 1;
+      stackAt(s, { c, r }).push({ color: 'white', type: 'flat' });
+    }
+    const road = findRoad(s, 'white')!;
+    expect(road).toHaveLength(7);
+    expect(road.some((p) => p.c === 3 && p.r === 3)).toBe(false);
   });
 
   it('walls do not count toward roads', () => {

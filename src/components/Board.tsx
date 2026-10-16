@@ -24,7 +24,7 @@ export interface PendingMove {
   drops: number[];
 }
 
-export type HighlightKind = 'selected' | 'target' | 'last' | 'path';
+export type HighlightKind = 'selected' | 'target' | 'last' | 'path' | 'road';
 
 export interface Highlight {
   coord: Coord;
@@ -48,22 +48,24 @@ const HIGHLIGHT_FILL: Record<HighlightKind, string> = {
   target: 'rgba(96, 200, 120, 0.5)',
   last: 'rgba(90, 150, 255, 0.35)',
   path: 'rgba(255, 196, 64, 0.3)',
+  road: 'rgba(70, 210, 110, 0.6)',
 };
 
-function highlightShape(coord: Coord, size: number, kind: HighlightKind): Shape {
+/** A translucent diamond over a square; `lift` raises it to sit on top of a stack. */
+function highlightShape(coord: Coord, size: number, kind: HighlightKind, lift = 0.5): Shape {
   const { u, v } = squareToUV(coord, size);
-  const inset = kind === 'target' ? 0.12 : 0.03;
+  const inset = kind === 'target' ? 0.12 : kind === 'road' ? 0.1 : 0.03;
   return {
     kind: 'polygon',
     points: [
-      project(u + inset, v + inset, 0.5),
-      project(u + 1 - inset, v + inset, 0.5),
-      project(u + 1 - inset, v + 1 - inset, 0.5),
-      project(u + inset, v + 1 - inset, 0.5),
+      project(u + inset, v + inset, lift),
+      project(u + 1 - inset, v + inset, lift),
+      project(u + 1 - inset, v + 1 - inset, lift),
+      project(u + inset, v + 1 - inset, lift),
     ],
     fill: HIGHLIGHT_FILL[kind],
-    stroke: kind === 'target' ? 'rgba(40, 140, 70, 0.9)' : undefined,
-    strokeWidth: 1.5,
+    stroke: kind === 'target' ? 'rgba(40, 140, 70, 0.9)' : kind === 'road' ? 'rgba(20, 120, 50, 0.95)' : undefined,
+    strokeWidth: kind === 'road' ? 2 : 1.5,
   };
 }
 
@@ -136,9 +138,15 @@ export function Board({ state, pending, placePreview, highlights = [], onSquareC
         const sq = squares.get(idx(size, coord.c, coord.r))!;
         const shapes: Shape[] = [...tileShapes(coord, size)];
         for (const h of highlights) {
-          if (sameCoord(h.coord, coord)) shapes.push(highlightShape(coord, size, h.kind));
+          if (h.kind !== 'road' && sameCoord(h.coord, coord)) shapes.push(highlightShape(coord, size, h.kind));
         }
         shapes.push(...stackShapes(sq.stack, coord, size));
+        // The winning road is drawn on top of the stacks so it stays visible.
+        for (const h of highlights) {
+          if (h.kind === 'road' && sameCoord(h.coord, coord)) {
+            shapes.push(highlightShape(coord, size, 'road', stackTopHeight(sq.stack) + 0.5));
+          }
+        }
         const { u, v } = squareToUV(coord, size);
         for (const g of sq.ghosts) shapes.push(...pieceShapes(g.piece, u + 0.5, v + 0.5, g.lift, 0.65));
         if (sq.floating) {
