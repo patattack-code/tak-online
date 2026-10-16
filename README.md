@@ -72,7 +72,21 @@ Moves are stored in [Portable Tak Notation](https://ustak.org/portable-tak-notat
 
 Standard Elo per board size, starting at 1500. K = 40 for a player's first 20 games on that size, 20 afterwards, 10 above 2200. Draws score 0.5.
 
+### Security model
+
+Everything is enforced by `firestore.rules`, tested against the Firestore emulator:
+
+```bash
+npm run test:rules     # needs a JDK on the PATH for the emulator
+```
+
+- Profiles: only the owner can edit their name and photo; nobody can create a profile with pre-filled stats.
+- Games: allow-listed fields; only a non-creator can join; the move history is append-only and each new move must match the PTN pattern; only the player to move can add one; resigning can only hand the win to the opponent; players, size, name and rated flag are frozen during play.
+- Ratings: a statistics write is accepted only inside the transaction that finishes a rated game between the two players (`get`/`getAfter` on the game named in `lastRatedGame`), the change must equal the delta recorded on the game, deltas are bounded to ±40 and sign-checked against the result, and each game applies ratings exactly once.
+- Hosting sends a Content-Security-Policy and the usual hardening headers.
+
+What rules cannot check is the Tak rules themselves: a player could submit a move the engine would reject, or claim a road win that is not there. Clients ignore illegal histories, and the rating damage is capped at one real game's worth per fake game, the same as losing to a friend's second account. Fully closing that requires moving `finishGame` in `src/data/games.ts` into a Cloud Function (Blaze plan) that replays the moves server-side.
+
 ### Known limits
 
 - No clocks or timeouts yet. Abandoned games stay active until someone resigns.
-- Rating updates run in the client transaction and are protected by security rules, which is fine among friends. For a public server, move `finishGame` in `src/data/games.ts` into a Cloud Function and lock down writes to `ratings`.
