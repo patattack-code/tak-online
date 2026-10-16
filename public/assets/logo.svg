@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-42 -61 84 105" width="102.40" height="128">
+<title>Tak Online</title>
+<polygon points="0,-2.32 -26.64,11 -26.64,18 0,4.68" fill="#302116" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="26.64,11 0,-2.32 0,4.68 26.64,18" fill="#3c2a1c" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-2.32 -26.64,11 0,24.32 26.64,11" fill="#5a4030" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-9.32 -26.64,4 -26.64,11 0,-2.32" fill="#a99a7b" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="26.64,4 0,-9.32 0,-2.32 26.64,11" fill="#d4c29b" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-9.32 -26.64,4 0,17.32 26.64,4" fill="#f1e6cb" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-16.32 -26.64,-3 -26.64,4 0,-9.32" fill="#302116" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="26.64,-3 0,-16.32 0,-9.32 26.64,4" fill="#3c2a1c" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-16.32 -26.64,-3 0,10.32 26.64,-3" fill="#5a4030" stroke="#1b110a" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M -15.273506473629425 -3 A 15.273506473629425 7.636753236814712 0 0 0 15.273506473629425 -3 L 15.273506473629425 -35 A 15.273506473629425 7.636753236814712 0 0 1 -15.273506473629425 -35 Z" fill="#c5b490" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M -8.400428560496184 2.7275649276110343 L -3.054701294725885 4.407650639710271 L -3.054701294725885 -27.59234936028973 L -8.400428560496184 -29.272435072388966 Z" fill="#f0dcaf" opacity="0.55"/>
+<ellipse cx="0" cy="-35" rx="15.27" ry="7.64" fill="#f1e6cb" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<ellipse cx="0" cy="-36.50" rx="6.87" ry="3.44" fill="#d9cfb7"/>
+</svg>

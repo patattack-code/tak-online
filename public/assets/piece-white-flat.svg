@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30.24 -6.40 60.48 41.80" width="60.48" height="41.80">
+<title>white flat</title>
+<polygon points="0,-2.32 -26.64,11 -26.64,18 0,4.68" fill="#a99a7b" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="26.64,11 0,-2.32 0,4.68 26.64,18" fill="#d4c29b" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+<polygon points="0,-2.32 -26.64,11 0,24.32 26.64,11" fill="#f1e6cb" stroke="#8f7c52" stroke-width="0.8" stroke-linejoin="round"/>
+</svg>

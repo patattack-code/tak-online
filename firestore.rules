@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Public player profiles with per-size ratings.
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.totals.games == 0;
+      // Owners may edit their profile fields. Any signed-in user may touch only
+      // the statistics keys; that is how the game-ending transaction updates
+      // both players' ratings. (Hardening option: move that into a Cloud Function.)
+      allow update: if signedIn() && (
+        (request.auth.uid == uid && !changedKeys().hasAny(['ratings', 'totals']))
+        || changedKeys().hasOnly(['ratings', 'totals', 'updatedAt'])
+      );
+      allow delete: if false;
+    }
+
+    match /games/{gameId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && gameId.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+        && gameId.size() <= 52
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.creator == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.size in [3, 4, 5, 6, 7, 8]
+        && request.resource.data.moves.size() == 0
+        && request.resource.data.playerIds == [request.auth.uid];
+
+      // Joining: a different signed-in user turns a waiting game active.
+      allow update: if signedIn()
+        && resource.data.status == 'waiting'
+        && request.resource.data.status == 'active'
+        && request.auth.uid != resource.data.creator
+        && request.resource.data.playerIds.hasAll([resource.data.creator, request.auth.uid])
+        && request.resource.data.playerIds.size() == 2
+        && request.resource.data.moves.size() == 0;
+
+      // Playing: only participants, and only the player to move may add moves.
+      // Resignation changes status without adding a move, so either player may do it.
+      allow update: if signedIn()
+        && resource.data.status == 'active'
+        && request.auth.uid in resource.data.playerIds
+        && request.resource.data.playerIds == resource.data.playerIds
+        && request.resource.data.white == resource.data.white
+        && request.resource.data.black == resource.data.black
+        && request.resource.data.size == resource.data.size
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.rated == resource.data.rated
+        && (
+          request.resource.data.moves == resource.data.moves
+          || (resource.data.toMoveUid == request.auth.uid
+              && request.resource.data.moves.size() == resource.data.moves.size() + 1)
+        );
+
+      // The creator may withdraw an unanswered challenge.
+      allow delete: if signedIn()
+        && resource.data.status == 'waiting'
+        && resource.data.creator == request.auth.uid;
+    }
+  }
+}
